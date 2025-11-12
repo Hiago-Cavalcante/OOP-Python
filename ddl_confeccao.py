@@ -96,6 +96,38 @@ CREATE TABLE IF NOT EXISTS pagamento (
 );
 """)
 
+# Tabela: PRODUCAO
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS producao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data_inicio TEXT,
+    data_fim TEXT,
+    status TEXT CHECK (status IN ('Planejada', 'Em andamento', 'Concluída', 'Cancelada')) DEFAULT 'Planejada'
+);
+""")
+
+# Tabela: ETAPA_PRODUCAO
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS etapa_producao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT CHECK (tipo IN ('Corte', 'Costura', 'Bordado', 'Acabamento', 'Inspeção')) NOT NULL,
+    descricao TEXT,
+    ordem INTEGER NOT NULL
+);
+""")
+
+# Tabela: EXECUCAO_ETAPA
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS execucao_etapa (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    papel TEXT NOT NULL,
+    funcionario_id INTEGER,
+    horas_trabalhadas REAL DEFAULT 0.0,
+    observacoes TEXT,
+    FOREIGN KEY (funcionario_id) REFERENCES funcionario(id)
+);
+""")
+
 # =======================================================
 # FINALIZAÇÃO
 # =======================================================
@@ -103,4 +135,4 @@ conn.commit()
 conn.close()
 
 print("✅ Banco de dados 'confeccao.db' criado com sucesso!")
-print("📊 Tabelas criadas: pessoa, cliente, funcionario, roupa, pedido, item_pedido, pagamento")
+print("📊 Tabelas criadas: pessoa, cliente, funcionario, roupa, pedido, item_pedido, pagamento, producao, etapa_producao, execucao_etapa")

@@ -3,6 +3,43 @@
 # =======================================================
 
 import sqlite3
+from enum import Enum
+from datetime import date
+
+# =======================================================
+# ENUMS
+# =======================================================
+
+class FormaPagamento(Enum):
+    DINHEIRO = "Dinheiro"
+    CARTAO = "Cartão"
+    PIX = "Pix"
+    BOLETO = "Boleto"
+
+class StatusPagamento(Enum):
+    PENDENTE = "Pendente"
+    PROCESSANDO = "Processando"
+    CONFIRMADO = "Confirmado"
+    ESTORNADO = "Estornado"
+
+class StatusPedido(Enum):
+    ABERTO = "Aberto"
+    EM_PROCESSAMENTO = "Em processamento"
+    FINALIZADO = "Finalizado"
+    CANCELADO = "Cancelado"
+
+class StatusProducao(Enum):
+    PLANEJADA = "Planejada"
+    EM_ANDAMENTO = "Em andamento"
+    CONCLUIDA = "Concluída"
+    CANCELADA = "Cancelada"
+
+class TipoEtapa(Enum):
+    CORTE = "Corte"
+    COSTURA = "Costura"
+    BORDADO = "Bordado"
+    ACABAMENTO = "Acabamento"
+    INSPECAO = "Inspeção"
 
 # =======================================================
 # CLASSES DO DOMÍNIO
@@ -13,6 +50,12 @@ class Pessoa:
         self.nome = nome
         self.telefone = telefone
         self.email = email
+    
+    def atualizar_contato(self, telefone=None, email=None):
+        if telefone:
+            self.telefone = telefone
+        if email:
+            self.email = email
 
 
 class Cliente(Pessoa):
@@ -20,6 +63,16 @@ class Cliente(Pessoa):
         super().__init__(nome, telefone, email)
         self.cpf = cpf
         self.endereco = endereco
+    
+    def fazer_pedido(self, numero, pedido_dao):
+        pedido = Pedido(numero, None, self)
+        return pedido
+    
+    def acompanhar_pedido(self, pedido):
+        print(f"Pedido {pedido.numero} está com status: {pedido.status}")
+    
+    def pagar_pedido(self, pedido, pagamento):
+        pedido.pagar(pagamento)
 
 
 class Funcionario(Pessoa):
@@ -28,6 +81,12 @@ class Funcionario(Pessoa):
         self.matricula = matricula
         self.cargo = cargo
         self.salario = salario
+    
+    def registrar_ponto(self):
+        print(f"{self.nome} registrou ponto em {date.today()}")
+    
+    def calcular_salario(self):
+        return self.salario
 
 
 class Roupa:
@@ -38,6 +97,125 @@ class Roupa:
         self.cor = cor
         self.preco = preco
         self.estoque = estoque
+    
+    def aplicar_desconto(self, percentual):
+        self.preco = self.preco * (1 - percentual / 100)
+        print(f"Desconto aplicado! Novo preço: R$ {self.preco:.2f}")
+    
+    def atualizar_estoque(self, qtd):
+        self.estoque += qtd
+        print(f"Estoque atualizado: {self.estoque}")
+
+
+class Pedido:
+    def __init__(self, numero, id=None, cliente=None, status=StatusPedido.ABERTO):
+        self.id = id
+        self.numero = numero
+        self.cliente = cliente
+        self.itens = []
+        self.status = status
+        self.pagamento = None
+    
+    def adicionar_item(self, item):
+        if item.quantidade <= 0:
+            print("Quantidade inválida")
+            return
+        if item.roupa.estoque < item.quantidade:
+            print("Estoque insuficiente")
+            return
+        self.itens.append(item)
+        item.roupa.atualizar_estoque(-item.quantidade)
+        print(f"Adicionado {item.quantidade}x {item.roupa.descricao}")
+    
+    def remover_item(self, item):
+        if item in self.itens:
+            self.itens.remove(item)
+            item.roupa.atualizar_estoque(item.quantidade)
+            print(f"Removido {item.quantidade}x {item.roupa.descricao}")
+        else:
+            print("Item não encontrado")
+    
+    def calcular_total(self):
+        return round(sum(item.calcular_subtotal() for item in self.itens), 2)
+    
+    def atualizar_status(self, novo_status):
+        self.status = novo_status
+        print(f"Pedido {self.numero} atualizado para {novo_status.value if isinstance(novo_status, Enum) else novo_status}")
+    
+    def pagar(self, pagamento):
+        self.pagamento = pagamento
+        pagamento.processar()
+        pagamento.confirmar()
+        if pagamento.status == StatusPagamento.CONFIRMADO:
+            self.atualizar_status(StatusPedido.FINALIZADO)
+
+
+class ItemPedido:
+    def __init__(self, roupa, quantidade, valor_unitario=None):
+        self.roupa = roupa
+        self.quantidade = int(quantidade)
+        self.valor_unitario = float(valor_unitario) if valor_unitario else float(roupa.preco)
+    
+    def calcular_subtotal(self):
+        return self.valor_unitario * self.quantidade
+
+
+class Pagamento:
+    def __init__(self, valor, forma, pedido=None):
+        self.pedido = pedido
+        self.valor = float(valor)
+        self.forma = forma
+        self.status = StatusPagamento.PENDENTE
+    
+    def processar(self):
+        print(f"Processando pagamento de R$ {self.valor:.2f} por {self.forma.value if isinstance(self.forma, Enum) else self.forma}")
+        self.status = StatusPagamento.PROCESSANDO
+    
+    def confirmar(self):
+        if self.status == StatusPagamento.PROCESSANDO:
+            self.status = StatusPagamento.CONFIRMADO
+            print("Pagamento confirmado")
+    
+    def estornar(self):
+        if self.status == StatusPagamento.CONFIRMADO:
+            self.status = StatusPagamento.ESTORNADO
+            print("Pagamento estornado")
+        else:
+            print("Não é possível estornar pagamento não confirmado")
+
+
+class Producao:
+    def __init__(self, id, data_inicio=None, data_fim=None):
+        self.id = id
+        self.data_inicio = data_inicio or date.today()
+        self.data_fim = data_fim
+        self.status = StatusProducao.PLANEJADA
+    
+    def iniciar_producao(self):
+        self.status = StatusProducao.EM_ANDAMENTO
+        self.data_inicio = date.today()
+        print(f"Produção {self.id} iniciada")
+    
+    def finalizar_producao(self):
+        self.status = StatusProducao.CONCLUIDA
+        self.data_fim = date.today()
+        print(f"Produção {self.id} finalizada")
+
+
+class EtapaProducao:
+    def __init__(self, id, tipo, descricao, ordem):
+        self.id = id
+        self.tipo = tipo
+        self.descricao = descricao
+        self.ordem = ordem
+
+
+class ExecucaoEtapa:
+    def __init__(self, papel, funcionario=None):
+        self.papel = papel
+        self.funcionario = funcionario
+        self.horas_trabalhadas = 0.0
+        self.observacoes = ""
 
 
 # =======================================================
